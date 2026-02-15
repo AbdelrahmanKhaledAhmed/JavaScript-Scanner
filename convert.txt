@@ -1,0 +1,1 @@
+python -m PyInstaller --onefile --collect-all rich --icon=icon.ico --name "JavaScript Scanner" main.py
