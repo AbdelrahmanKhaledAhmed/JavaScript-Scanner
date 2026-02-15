@@ -8,7 +8,6 @@ This tool scans a `javascript.js` file and extracts:
 
 It uses regex patterns defined in `config.json`.
 
----
 
 ## What This Tool Does
 
@@ -23,7 +22,7 @@ It uses regex patterns defined in `config.json`.
    - Endpoints
 5. Displays results in a clean formatted output using **Rich**
 
----
+
 
 ## IMPORTANT
 
@@ -32,7 +31,7 @@ It uses regex patterns defined in `config.json`.
 
 The scanner will NOT work if those files are missing.
 
----
+
 
 ## Requirements
 
