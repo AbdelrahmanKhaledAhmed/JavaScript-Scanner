@@ -28,6 +28,9 @@ export default function Editor() {
   // mask data URL generated from base tshirt image alpha (or from external mask)
   const [maskDataUrl, setMaskDataUrl] = useState(null);
 
+  // waiting state when user chose to remove background externally
+  const [waitingForProcessed, setWaitingForProcessed] = useState(false);
+
   useEffect(() => {
     const raw = localStorage.getItem("selectedModel");
     if (raw) {
@@ -129,65 +132,75 @@ export default function Editor() {
     }
   }
 
+  // load image helper
+  function loadImage(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = src;
+    });
+  }
+
+  // add layer from a raw data URL (no normalization)
+  function addLayerFromSrc(src) {
+    const id = `layer_${Date.now()}`;
+    const w = containerSize.w, h = containerSize.h;
+    const newLayer = {
+      id,
+      src,
+      x: Math.round(w / 2 - 100),
+      y: Math.round(h / 2 - 100),
+      scale: 1,
+      rotation: 0,
+      selected: true
+    };
+    setLayers(prev => [newLayer, ...prev.map(l => ({ ...l, selected: false }))]);
+  }
+
+  // add layer from an image object or data URL but normalize alpha first
+  async function addLayerFromImageSrcNormalized(src) {
+    try {
+      const img = await loadImage(src);
+      const targetW = img.width;
+      const targetH = img.height;
+      const normalizedDataUrl = normalizeImageAlpha(img, targetW, targetH);
+      addLayerFromSrc(normalizedDataUrl);
+    } catch (err) {
+      // fallback to raw src if normalization or load fails
+      addLayerFromSrc(src);
+    }
+  }
+
   function handleAddImageFile(file) {
     const reader = new FileReader();
     reader.onload = async (ev) => {
       const src = ev.target.result;
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.onload = async () => {
-        try {
-          // normalize premultiplied alpha to remove fringe (keep this; background-key removed)
-          const targetW = img.width;
-          const targetH = img.height;
-          const normalizedDataUrl = normalizeImageAlpha(img, targetW, targetH);
+      const wantRemoveBg = window.confirm("هل تريد إزالة الخلفية من الصورة؟");
 
-          // create layer using normalizedDataUrl
-          const id = `layer_${Date.now()}`;
-          const w = containerSize.w, h = containerSize.h;
-          const newLayer = {
-            id,
-            src: normalizedDataUrl,
-            x: Math.round(w / 2 - 100),
-            y: Math.round(h / 2 - 100),
-            scale: 1,
-            rotation: 0,
-            selected: true
-          };
-          // insert at front so it's the top layer (index 0)
-          setLayers(prev => [newLayer, ...prev.map(l => ({ ...l, selected: false }))]);
-        } catch (err) {
-          // fallback: add original data URL if processing fails
-          const id = `layer_${Date.now()}`;
-          const w = containerSize.w, h = containerSize.h;
-          const newLayer = {
-            id,
-            src,
-            x: Math.round(w / 2 - 100),
-            y: Math.round(h / 2 - 100),
-            scale: 1,
-            rotation: 0,
-            selected: true
-          };
-          setLayers(prev => [newLayer, ...prev.map(l => ({ ...l, selected: false }))]);
-        }
-      };
-      img.onerror = () => {
-        // fallback: add original data URL if image failed to load as Image object
-        const id = `layer_${Date.now()}`;
-        const w = containerSize.w, h = containerSize.h;
-        const newLayer = {
-          id,
-          src,
-          x: Math.round(w / 2 - 100),
-          y: Math.round(h / 2 - 100),
-          scale: 1,
-          rotation: 0,
-          selected: true
-        };
-        setLayers(prev => [newLayer, ...prev.map(l => ({ ...l, selected: false }))]);
-      };
-      img.src = src;
+      if (wantRemoveBg) {
+        // open external background removal site in new tab
+        window.open("https://your-background-removal-link.com", "_blank");
+        // show waiting UI so user can upload processed image when ready
+        setWaitingForProcessed(true);
+        return;
+      }
+
+      // if user doesn't want to remove background, add image (normalized)
+      await addLayerFromImageSrcNormalized(src);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // handler for when user uploads the processed (background-removed) image
+  function handleProcessedUploadFile(file) {
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const src = ev.target.result;
+      // add processed image (normalize alpha too)
+      await addLayerFromImageSrcNormalized(src);
+      setWaitingForProcessed(false);
     };
     reader.readAsDataURL(file);
   }
@@ -307,16 +320,6 @@ export default function Editor() {
     };
   }
 
-  function loadImage(src) {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.onload = () => resolve(img);
-      img.onerror = reject;
-      img.src = src;
-    });
-  }
-
   async function exportPNG() {
     const canvas = document.createElement("canvas");
     canvas.width = containerSize.w;
@@ -378,6 +381,12 @@ export default function Editor() {
 
   // whether any layer is currently selected
   const anySelected = layers.some(l => l.selected);
+
+  // helper to (re)open the external bg removal site from modal
+  function openBgRemovalSite() {
+    window.open("https://your-background-removal-link.com", "_blank");
+    setWaitingForProcessed(true);
+  }
 
   return (
     <div
@@ -470,7 +479,7 @@ export default function Editor() {
             </div>
 
             <div style={{ marginTop: 12, display: "flex", gap: 8, alignItems: "center" }}>
-              <label className="btn-upload">
+              <label className="btn-upload btn" style={{ position: "relative", overflow: "hidden", cursor: "pointer" }}>
                 + Add Image
                 <input type="file" accept="image/*" style={{ display: "none" }}
                   onChange={(e) => {
@@ -489,6 +498,88 @@ export default function Editor() {
 
               <button className="btn" onClick={deleteSelectedLayer}>Delete Layer</button>
             </div>
+
+            {/* Modal popup for waiting/uploading processed image */}
+            {waitingForProcessed && (
+              <div
+                role="dialog"
+                aria-modal="true"
+                style={{
+                  position: "fixed",
+                  left: 0,
+                  top: 0,
+                  right: 0,
+                  bottom: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "rgba(0,0,0,0.6)",
+                  zIndex: 1000
+                }}
+                onClick={() => { /* click outside does nothing to avoid accidental close */ }}
+              >
+                <div
+                  style={{
+                    width: 520,
+                    maxWidth: "92%",
+                    background: "#071018",
+                    borderRadius: 12,
+                    padding: 18,
+                    boxShadow: "0 10px 30px rgba(0,0,0,0.6)",
+                    color: "#e6eef6",
+                    display: "flex",
+                    gap: 12,
+                    alignItems: "flex-start",
+                    position: "relative"
+                  }}
+                >
+                  <div style={{ flex: 1 }}>
+                    <h3 style={{ margin: "0 0 8px 0" }}>أنا مستني منك الصورة الجديدة بدون خلفية</h3>
+                    <p style={{ margin: 0, color: "#9fbfd6" }}>
+                      افتح الموقع اللي فتحناه في التاب الجديد، عالج الصورة لإزالة الخلفية، وبعدين ارفع النسخة المعدلة هنا.
+                    </p>
+
+                    <div style={{ marginTop: 12, display: "flex", gap: 8, alignItems: "center" }}>
+                      <button
+                        className="btn"
+                        onClick={() => openBgRemovalSite()}
+                      >
+                        افتح موقع إزالة الخلفية
+                      </button>
+
+                      <label className="btn" style={{ position: "relative", overflow: "hidden", cursor: "pointer" }}>
+                        Upload Processed Image
+                        <input type="file" accept="image/*" style={{ display: "none" }}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) handleProcessedUploadFile(f);
+                            e.target.value = "";
+                          }} />
+                      </label>
+
+                      <button className="btn" onClick={() => setWaitingForProcessed(false)}>إلغاء</button>
+                    </div>
+                  </div>
+
+                  <button
+                    aria-label="Close"
+                    onClick={() => setWaitingForProcessed(false)}
+                    style={{
+                      position: "absolute",
+                      right: 10,
+                      top: 10,
+                      background: "transparent",
+                      border: "none",
+                      color: "#9fbfd6",
+                      cursor: "pointer",
+                      fontSize: 18
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            )}
           </section>
 
           <aside style={{ background: "linear-gradient(180deg,#071018,#000)", padding: 12, borderRadius: 12, color: "#e6eef6" }}>
