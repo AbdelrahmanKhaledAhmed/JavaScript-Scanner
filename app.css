@@ -1,0 +1,284 @@
+:root{
+  --card-w: 720px;
+  --card-h: 520px;
+  --accent: #00d4ff;
+  --muted: #9aa4b2;
+}
+
+/* صفحة بخلفية سوداء أنيقة */
+body {
+  margin: 0;
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
+  background: radial-gradient(1200px 600px at 10% 10%, #0b0f12 0%, #050607 30%, #000000 100%);
+  color: #e6eef6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* عام */
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 36px 20px;
+  gap: 18px;
+}
+
+/* توب بار */
+.topbar {
+  width: 100%;
+  max-width: calc(var(--card-w) + 120px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #f8fafc;
+  margin-bottom: 6px;
+}
+.topbar h1, .topbar h2 { margin: 0; font-size: 20px; letter-spacing: 0.4px; text-shadow: 0 2px 12px rgba(0,0,0,0.6); }
+
+/* زرار */
+.btn {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.06);
+  color: #eaf6ff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+}
+.btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.45); }
+.btn:active { transform: translateY(0); }
+
+.btn-upload {
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: linear-gradient(90deg,#0b1220,#07101a);
+  color: #eaf6ff;
+  border: 1px solid rgba(255,255,255,0.04);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* زرار نشط */
+.btn.active {
+  box-shadow: 0 6px 18px rgba(0,212,255,0.08);
+  border-color: rgba(0,212,255,0.12);
+}
+
+/* shell للـ viewer */
+.viewer-shell {
+  width: calc(var(--card-w) + 120px);
+  max-width: 95vw;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+/* الأسهم فوق الـ canvas */
+.overlay-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+  color: #eaf6ff;
+  font-size: 28px;
+  cursor: pointer;
+  box-shadow: 0 10px 30px rgba(2,6,23,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+  transition: transform .15s ease, background .15s;
+  backdrop-filter: blur(6px);
+}
+.overlay-arrow:hover { transform: translateY(-50%) scale(1.06); background: rgba(255,255,255,0.04); }
+.overlay-arrow.left { left: 8px; }
+.overlay-arrow.right { right: 8px; }
+
+/* البطاقة */
+.viewer-card {
+  width: var(--card-w);
+  height: var(--card-h);
+  border-radius: 16px;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  box-shadow: 0 30px 80px rgba(2,6,23,0.7), inset 0 1px 0 rgba(255,255,255,0.02);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 14px;
+}
+
+/* اسم الموديل */
+.label {
+  font-weight: 600;
+  color: #e6f7ff;
+  margin-bottom: 8px;
+  letter-spacing: 0.3px;
+}
+
+/* wrapper للـ canvas */
+.canvas-wrap {
+  width: 100%;
+  height: calc(100% - 80px);
+  border-radius: 12px;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(0,0,0,0.02));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* choose row */
+.choose-row { width: 100%; display:flex; justify-content:center; align-items:center; }
+
+/* dots */
+.dots { display: flex; gap: 10px; justify-content:center; margin-top:12px; }
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255,255,255,0.08);
+  cursor: pointer;
+  transition: transform .12s, background .12s;
+}
+.dot.active { background: var(--accent); transform: scale(1.15); box-shadow: 0 6px 18px rgba(0,212,255,0.12); }
+
+/* loading style داخل الـ Canvas */
+.loading {
+  color: #cfefff;
+  padding: 8px 14px;
+  background: rgba(0,0,0,0.45);
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+/* settings panel */
+.settings-panel {
+  position: fixed;
+  right: 18px;
+  top: 80px;
+  width: 360px;
+  max-width: 90vw;
+  background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  padding: 14px;
+  z-index: 120;
+  color: #eaf6ff;
+}
+.settings-header { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.settings-body { display:flex; flex-direction:column; gap:10px; margin-top:10px; }
+.settings-body label { display:flex; flex-direction:column; gap:6px; font-size:13px; color:#cfefff; }
+.settings-body input[type="range"] { width:100%; }
+.settings-body input[type="number"], .settings-body input[type="text"] { padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.04); background:rgba(0,0,0,0.25); color:#eaf6ff; }
+.hint { font-size:12px; color:#9fbfd6; margin-top:8px; }
+
+/* editor styles */
+.editor-root .topbar { margin-bottom: 12px; }
+.tool-row { display:flex; flex-direction:column; gap:6px; margin-bottom:8px; color:#cfefff; }
+.tool-row input, .tool-row select { width:100%; }
+
+/* editor container explicit sizing and visual */
+.editor-container {
+  background-color: transparent;
+  display: block;
+  position: relative;
+  border: 1px solid rgba(255,255,255,0.04);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+}
+
+/* checkerboard background for editing area */
+.checkerboard {
+  background-image:
+    linear-gradient(45deg, rgba(200,200,200,0.12) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(200,200,200,0.12) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(200,200,200,0.06) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(200,200,200,0.06) 75%);
+  background-size: 24px 24px;
+  background-position: 0 0, 0 12px, 12px -12px, -12px 0px;
+  overflow: hidden;
+}
+
+/* ensure layer images are visible and on top */
+.editor-container img {
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+/* base image styling (fills container) */
+.editor-container > img {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  z-index: 10; /* base image */
+  pointer-events: none;
+}
+
+/* layers (added images) */
+.editor-container img[draggable="false"] {
+  z-index: 20;
+  max-width: none;
+  max-height: none;
+}
+
+/* visible dashed border for selected layer */
+.editor-container img[style*="dashed"] {
+  box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+}
+
+/* layers-wrapper: default pointer-events auto and mask fallback via CSS if you have a mask file */
+.layers-wrapper {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 20;
+  pointer-events: auto;
+  /* If you have a static mask file, you can set it here as fallback:
+     -webkit-mask-image: url('/images/tshirt_mask.png');
+     -webkit-mask-size: cover;
+     -webkit-mask-repeat: no-repeat;
+     -webkit-mask-position: center;
+     mask-image: url('/images/tshirt_mask.png');
+     mask-size: cover;
+     mask-repeat: no-repeat;
+     mask-position: center;
+  */
+}
+
+/* sidebar scrollbar */
+aside::-webkit-scrollbar { width: 8px; }
+aside::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 8px; }
+
+/* small UX */
+.btn-upload { cursor:pointer; padding:8px 10px; border-radius:8px; background:linear-gradient(90deg,#0b1220,#07101a); color:#eaf6ff; border:1px solid rgba(255,255,255,0.04); display:inline-flex; align-items:center; gap:8px; }
+
+/* layer thumbnails in sidebar */
+aside img { display: block; max-width: 100%; height: auto; }
+
+/* responsive */
+@media (max-width: 900px) {
+  :root { --card-w: 520px; --card-h: 420px; }
+  .overlay-arrow { width: 52px; height: 52px; font-size: 22px; }
+  main { padding: 12px; }
+}
+@media (max-width: 520px) {
+  :root { --card-w: 360px; --card-h: 320px; }
+  .overlay-arrow { width: 44px; height: 44px; font-size: 20px; left: 6px; right: 6px; }
+  .viewer-card { width: 95vw; height: auto; }
+  .canvas-wrap { height: 60vw; }
+}
