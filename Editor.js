@@ -9,7 +9,9 @@ export default function Editor() {
   const navigate = useNavigate();
   const [modelCfg, setModelCfg] = useState(null);
 
-  const [layers, setLayers] = useState([]); // { id, src, x, y, scale, rotation, selected }
+  // layers order: index 0 = top, index 1 = below it, etc.
+  // layer shape: { id, src, x, y, scale, rotation, selected }
+  const [layers, setLayers] = useState([]);
   const containerRef = useRef(null);
   const baseImgRef = useRef(null);
   const [containerSize, setContainerSize] = useState({ w: 600, h: 600 });
@@ -152,7 +154,8 @@ export default function Editor() {
             rotation: 0,
             selected: true
           };
-          setLayers(prev => prev.map(l => ({ ...l, selected: false })).concat(newLayer));
+          // insert at front so it's the top layer (index 0)
+          setLayers(prev => [newLayer, ...prev.map(l => ({ ...l, selected: false }))]);
         } catch (err) {
           // fallback: add original data URL if processing fails
           const id = `layer_${Date.now()}`;
@@ -166,7 +169,7 @@ export default function Editor() {
             rotation: 0,
             selected: true
           };
-          setLayers(prev => prev.map(l => ({ ...l, selected: false })).concat(newLayer));
+          setLayers(prev => [newLayer, ...prev.map(l => ({ ...l, selected: false }))]);
         }
       };
       img.onerror = () => {
@@ -182,7 +185,7 @@ export default function Editor() {
           rotation: 0,
           selected: true
         };
-        setLayers(prev => prev.map(l => ({ ...l, selected: false })).concat(newLayer));
+        setLayers(prev => [newLayer, ...prev.map(l => ({ ...l, selected: false }))]);
       };
       img.src = src;
     };
@@ -212,6 +215,7 @@ export default function Editor() {
       origY: layer.y,
       pointerId: e.pointerId ?? null
     };
+    // only toggle selection flag, do NOT reorder layers on select
     setLayers(prev => prev.map(l => ({ ...l, selected: l.id === layer.id })));
   }
 
@@ -266,11 +270,37 @@ export default function Editor() {
     setLayers(prev => prev.map(l => l.id === layer.id ? { ...l, scale: Math.max(0.1, +(l.scale + delta).toFixed(2)) } : l));
   }
 
-  function transformStyle(l) {
+  // Move layer up in stacking order (towards index 0 = top)
+  function moveLayerUp(id) {
+    setLayers(prev => {
+      const idx = prev.findIndex(l => l.id === id);
+      if (idx <= 0) return prev;
+      const copy = prev.slice();
+      // swap with previous (towards top)
+      [copy[idx - 1], copy[idx]] = [copy[idx], copy[idx - 1]];
+      return copy;
+    });
+  }
+
+  // Move layer down in stacking order (towards bottom = higher index)
+  function moveLayerDown(id) {
+    setLayers(prev => {
+      const idx = prev.findIndex(l => l.id === id);
+      if (idx === -1 || idx >= prev.length - 1) return prev;
+      const copy = prev.slice();
+      // swap with next (towards bottom)
+      [copy[idx + 1], copy[idx]] = [copy[idx], copy[idx + 1]];
+      return copy;
+    });
+  }
+
+  function transformStyle(l, idx) {
+    // zIndex based on array order: index 0 is top (highest zIndex)
+    const z = layers.length - idx + 100; // keep high base so it sits above base image
     return {
       transform: `translate(${l.x}px, ${l.y}px) scale(${l.scale}) rotate(${l.rotation}deg)`,
       touchAction: "none",
-      zIndex: l.selected ? 30 : 20,
+      zIndex: z,
       position: "absolute",
       left: 0,
       top: 0
@@ -301,7 +331,8 @@ export default function Editor() {
 
     try {
       const loadedImgs = await Promise.all(layers.map(l => loadImage(l.src).catch(() => null)));
-      for (let i = 0; i < layers.length; i++) {
+      // draw from bottom to top: since index 0 is top, draw from last to first
+      for (let i = layers.length - 1; i >= 0; i--) {
         const l = layers[i];
         const img = loadedImgs[i];
         if (!img) continue;
@@ -410,8 +441,9 @@ export default function Editor() {
                   maskPosition: "center"
                 }}
               >
-                {layers.map(layer => {
+                {layers.map((layer, idx) => {
                   const locked = anySelected && !layer.selected;
+                  // idx is the stacking index: 0 = top
                   return (
                     <img
                       key={layer.id}
@@ -426,11 +458,10 @@ export default function Editor() {
                         setLayers(prev => prev.map(l => l.id === layer.id ? { ...l, rotation: (l.rotation + 15) % 360 } : l));
                       }}
                       style={{
-                        // keep the original visual appearance even when locked
                         pointerEvents: locked ? "none" : "auto",
                         cursor: locked ? "not-allowed" : (layer.selected ? "grabbing" : "grab"),
                         opacity: 1,
-                        ...transformStyle(layer)
+                        ...transformStyle(layer, idx)
                       }}
                     />
                   );
@@ -461,7 +492,7 @@ export default function Editor() {
           </section>
 
           <aside style={{ background: "linear-gradient(180deg,#071018,#000)", padding: 12, borderRadius: 12, color: "#e6eef6" }}>
-            <h4 style={{ marginTop: 0 }}>Layers</h4>
+            <h4 style={{ marginTop: 0 }}>Layers (index 1 = top)</h4>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {layers.length === 0 && <div style={{ color: "#9fbfd6" }}>No image layers. Add one.</div>}
               {layers.map((l, idx) => (
@@ -470,13 +501,34 @@ export default function Editor() {
                     <img src={l.src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ color: "#e6eef6" }}>Layer {idx+1}</div>
+                    <div style={{ color: "#e6eef6" }}>Layer {idx + 1}</div>
                     <div style={{ fontSize: 12, color: "#9fbfd6" }}>
                       x: {Math.round(l.x)} y: {Math.round(l.y)} scale: {l.scale} rotation: {Math.round(l.rotation)}°
                     </div>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     <button className="btn" onClick={() => setLayers(prev => prev.map(x => ({ ...x, selected: x.id === l.id })))}>Select</button>
+
+                    {/* reorder arrows */}
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button
+                        className="btn"
+                        onClick={() => moveLayerUp(l.id)}
+                        disabled={idx === 0}
+                        title="Move up (towards top)"
+                      >
+                        ↑
+                      </button>
+                      <button
+                        className="btn"
+                        onClick={() => moveLayerDown(l.id)}
+                        disabled={idx === layers.length - 1}
+                        title="Move down (towards bottom)"
+                      >
+                        ↓
+                      </button>
+                    </div>
+
                     <button className="btn" onClick={() => {
                       // rotate only if this layer is selected (or no layer is selected)
                       if (layers.some(s => s.selected) && !l.selected) return;
