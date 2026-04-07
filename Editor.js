@@ -191,6 +191,13 @@ export default function Editor() {
 
   function onPointerDownLayer(e, layer) {
     e.stopPropagation();
+
+    // If any layer is selected and this layer is not the selected one, treat it as locked
+    if (layers.some(l => l.selected) && !layer.selected) {
+      // locked: ignore pointer down
+      return;
+    }
+
     try {
       e.currentTarget.setPointerCapture?.(e.pointerId);
     } catch {}
@@ -251,6 +258,10 @@ export default function Editor() {
 
   function onWheelOverLayer(e, layer) {
     e.preventDefault();
+
+    // If any layer is selected and this layer is not the selected one, it's locked — ignore wheel
+    if (layers.some(l => l.selected) && !layer.selected) return;
+
     const delta = e.deltaY < 0 ? 0.05 : -0.05;
     setLayers(prev => prev.map(l => l.id === layer.id ? { ...l, scale: Math.max(0.1, +(l.scale + delta).toFixed(2)) } : l));
   }
@@ -334,6 +345,9 @@ export default function Editor() {
 
   if (!modelCfg) return <div className="loading">Loading editor…</div>;
 
+  // whether any layer is currently selected
+  const anySelected = layers.some(l => l.selected);
+
   return (
     <div
       className="editor-root"
@@ -396,23 +410,31 @@ export default function Editor() {
                   maskPosition: "center"
                 }}
               >
-                {layers.map(layer => (
-                  <img
-                    key={layer.id}
-                    src={layer.src}
-                    alt=""
-                    draggable={false}
-                    data-selected={layer.selected ? "true" : "false"}
-                    onPointerDown={(e) => { e.preventDefault(); onPointerDownLayer(e, layer); }}
-                    onWheel={(e) => onWheelOverLayer(e, layer)}
-                    onDoubleClick={() => setLayers(prev => prev.map(l => l.id === layer.id ? { ...l, rotation: (l.rotation + 15) % 360 } : l))}
-                    style={{
-                      pointerEvents: "auto",
-                      cursor: layer.selected ? "grabbing" : "grab",
-                      ...transformStyle(layer)
-                    }}
-                  />
-                ))}
+                {layers.map(layer => {
+                  const locked = anySelected && !layer.selected;
+                  return (
+                    <img
+                      key={layer.id}
+                      src={layer.src}
+                      alt=""
+                      draggable={false}
+                      data-selected={layer.selected ? "true" : "false"}
+                      onPointerDown={(e) => { e.preventDefault(); onPointerDownLayer(e, layer); }}
+                      onWheel={(e) => onWheelOverLayer(e, layer)}
+                      onDoubleClick={() => {
+                        if (locked) return;
+                        setLayers(prev => prev.map(l => l.id === layer.id ? { ...l, rotation: (l.rotation + 15) % 360 } : l));
+                      }}
+                      style={{
+                        // keep the original visual appearance even when locked
+                        pointerEvents: locked ? "none" : "auto",
+                        cursor: locked ? "not-allowed" : (layer.selected ? "grabbing" : "grab"),
+                        opacity: 1,
+                        ...transformStyle(layer)
+                      }}
+                    />
+                  );
+                })}
               </div>
             </div>
 
@@ -455,8 +477,15 @@ export default function Editor() {
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     <button className="btn" onClick={() => setLayers(prev => prev.map(x => ({ ...x, selected: x.id === l.id })))}>Select</button>
-                    <button className="btn" onClick={() => rotateSelectedLayer(-15)}>لف يسار</button>
-                    <button className="btn" onClick={() => rotateSelectedLayer(15)}>لف يمين</button>
+                    <button className="btn" onClick={() => {
+                      // rotate only if this layer is selected (or no layer is selected)
+                      if (layers.some(s => s.selected) && !l.selected) return;
+                      rotateSelectedLayer(-15);
+                    }}>لف يسار</button>
+                    <button className="btn" onClick={() => {
+                      if (layers.some(s => s.selected) && !l.selected) return;
+                      rotateSelectedLayer(15);
+                    }}>لف يمين</button>
                     <button className="btn" onClick={() => removeLayerById(l.id)}>Remove</button>
                   </div>
                 </div>
