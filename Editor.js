@@ -127,66 +127,6 @@ export default function Editor() {
     }
   }
 
-  // Remove near-uniform background color by sampling corners and keying similar colors
-  function removeBackgroundColor(dataUrl, tolerance = 30) {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.onload = () => {
-        const w = img.width;
-        const h = img.height;
-        const c = document.createElement('canvas');
-        c.width = w;
-        c.height = h;
-        const cx = c.getContext('2d');
-        cx.drawImage(img, 0, 0, w, h);
-        try {
-          const imgData = cx.getImageData(0, 0, w, h);
-          const d = imgData.data;
-
-          // sample corners to estimate background color
-          function samplePixel(x, y) {
-            const i = (y * w + x) * 4;
-            return [d[i], d[i+1], d[i+2]];
-          }
-          const samples = [
-            samplePixel(1,1),
-            samplePixel(w-2,1),
-            samplePixel(1,h-2),
-            samplePixel(w-2,h-2)
-          ];
-          // average sample
-          const bg = samples.reduce((acc, s) => [acc[0]+s[0], acc[1]+s[1], acc[2]+s[2]], [0,0,0]).map(v => Math.round(v / samples.length));
-
-          // helper color distance
-          function colorDist(r,g,b) {
-            const dr = r - bg[0];
-            const dg = g - bg[1];
-            const db = b - bg[2];
-            return Math.sqrt(dr*dr + dg*dg + db*db);
-          }
-
-          // key out pixels close to bg color (make fully transparent)
-          for (let i = 0; i < d.length; i += 4) {
-            const r = d[i], g = d[i+1], b = d[i+2], a = d[i+3];
-            if (a > 0 && colorDist(r,g,b) <= tolerance) {
-              d[i+3] = 0;
-              d[i] = 0; d[i+1] = 0; d[i+2] = 0;
-            }
-          }
-
-          cx.putImageData(imgData, 0, 0);
-          resolve(c.toDataURL('image/png'));
-        } catch (err) {
-          console.warn('removeBackgroundColor failed', err);
-          resolve(dataUrl);
-        }
-      };
-      img.onerror = () => resolve(dataUrl);
-      img.src = dataUrl;
-    });
-  }
-
   function handleAddImageFile(file) {
     const reader = new FileReader();
     reader.onload = async (ev) => {
@@ -195,20 +135,17 @@ export default function Editor() {
       img.crossOrigin = "anonymous";
       img.onload = async () => {
         try {
-          // 1) normalize premultiplied alpha to remove fringe
+          // normalize premultiplied alpha to remove fringe (keep this; background-key removed)
           const targetW = img.width;
           const targetH = img.height;
           const normalizedDataUrl = normalizeImageAlpha(img, targetW, targetH);
 
-          // 2) remove near-uniform background color (chroma key) with tolerance 30
-          const cleanedDataUrl = await removeBackgroundColor(normalizedDataUrl, 30);
-
-          // create layer using cleanedDataUrl
+          // create layer using normalizedDataUrl
           const id = `layer_${Date.now()}`;
           const w = containerSize.w, h = containerSize.h;
           const newLayer = {
             id,
-            src: cleanedDataUrl,
+            src: normalizedDataUrl,
             x: Math.round(w / 2 - 100),
             y: Math.round(h / 2 - 100),
             scale: 1,
@@ -297,6 +234,15 @@ export default function Editor() {
 
   function scaleSelectedLayer(delta) {
     setLayers(prev => prev.map(l => l.selected ? { ...l, scale: Math.max(0.1, +(l.scale + delta).toFixed(2)) } : l));
+  }
+
+  // rotate selected layer by delta degrees (positive = clockwise/right, negative = counterclockwise/left)
+  function rotateSelectedLayer(delta) {
+    setLayers(prev => prev.map(l => {
+      if (!l.selected) return l;
+      const newRot = ((l.rotation + delta) % 360 + 360) % 360;
+      return { ...l, rotation: Math.round(newRot) };
+    }));
   }
 
   function deleteSelectedLayer() {
@@ -483,6 +429,11 @@ export default function Editor() {
 
               <button className="btn" onClick={() => scaleSelectedLayer(0.1)}>Scale +</button>
               <button className="btn" onClick={() => scaleSelectedLayer(-0.1)}>Scale -</button>
+
+              {/* rotate buttons */}
+              <button className="btn" onClick={() => rotateSelectedLayer(-15)}>لف يسار</button>
+              <button className="btn" onClick={() => rotateSelectedLayer(15)}>لف يمين</button>
+
               <button className="btn" onClick={deleteSelectedLayer}>Delete Layer</button>
             </div>
           </section>
@@ -498,10 +449,14 @@ export default function Editor() {
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ color: "#e6eef6" }}>Layer {idx+1}</div>
-                    <div style={{ fontSize: 12, color: "#9fbfd6" }}>x: {Math.round(l.x)} y: {Math.round(l.y)} scale: {l.scale}</div>
+                    <div style={{ fontSize: 12, color: "#9fbfd6" }}>
+                      x: {Math.round(l.x)} y: {Math.round(l.y)} scale: {l.scale} rotation: {Math.round(l.rotation)}°
+                    </div>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     <button className="btn" onClick={() => setLayers(prev => prev.map(x => ({ ...x, selected: x.id === l.id })))}>Select</button>
+                    <button className="btn" onClick={() => rotateSelectedLayer(-15)}>لف يسار</button>
+                    <button className="btn" onClick={() => rotateSelectedLayer(15)}>لف يمين</button>
                     <button className="btn" onClick={() => removeLayerById(l.id)}>Remove</button>
                   </div>
                 </div>
